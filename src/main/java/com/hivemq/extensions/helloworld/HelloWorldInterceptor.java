@@ -15,6 +15,7 @@
  */
 package com.hivemq.extensions.helloworld;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extension.sdk.api.interceptor.publish.PublishOutboundInterceptor;
@@ -59,25 +60,36 @@ public class HelloWorldInterceptor implements PublishOutboundInterceptor {
                 .build(); // .get() is the default method
 
         // 4. Execute the request and handle the response
-        try (Response response = client.newCall(request).execute()) {
+        Response response;
+        try {
+            response = client.newCall(request).execute();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
-            if (!response.isSuccessful()) {
-                // Handle unsuccessful responses (e.g., 404, 500)
-                throw new IOException("Unexpected code " + response);
+        if (response.isSuccessful()) {
+                // Get the response body as a string (this will be your JSON)
+                // Note: response.body().string() can be called only once.
+            String jsonResponse = null;
+            try {
+                jsonResponse = response.body().string();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            JsonNode root = null;
+            try {
+                root = objectMapper.readTree(jsonResponse);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+            int messageQueueSize = root.path("client").path("messageQueueSize").asInt();
+                int maxQueueSize = root.path("client").path("restrictions").path("maxQueueSize").asInt();
+
+                log.info("HELLO Client ID: {}, queue: {}",publishOutboundInput.getClientInformation().getClientId(),messageQueueSize);
             }
 
-            // Get the response body as a string (this will be your JSON)
-            // Note: response.body().string() can be called only once.
-            String jsonResponse = response.body().string();
-            JsonNode root = objectMapper.readTree(jsonResponse);
-            int messageQueueSize = root.path("client").path("messageQueueSize").asInt();
-            int maxQueueSize = root.path("client").path("restrictions").path("maxQueueSize").asInt();
 
-            log.info("HELLO Client ID: {}, queue: {}",publishOutboundInput.getClientInformation().getClientId(),messageQueueSize);
 
-        } catch (IOException e) {
-            // Handle network errors or other exceptions
-            log.error("Error making the request: " + e.getMessage());
-        }
+
     }
 }

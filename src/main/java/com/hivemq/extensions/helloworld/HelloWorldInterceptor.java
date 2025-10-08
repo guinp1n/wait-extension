@@ -50,7 +50,8 @@ public class HelloWorldInterceptor implements PublishOutboundInterceptor {
         OkHttpClient client = new OkHttpClient();
 
         // 2. Define the URL for the request
-        String url = "http://localhost:8888/api/v1/mqtt/clients/" + publishOutboundInput.getClientInformation().getClientId();
+        final String port = System.getenv("HIVEMQ_REST_API_PORT");
+        String url = "http://localhost:"+ port +"/api/v1/mqtt/clients/" + publishOutboundInput.getClientInformation().getClientId();
 
         // 3. Build the request object
         Request request = new Request.Builder()

@@ -76,6 +76,6 @@ public class HelloWorldMain implements ExtensionMain {
         final HelloWorldInterceptor helloWorldInterceptor = new HelloWorldInterceptor();
 
         initializerRegistry.setClientInitializer(
-                (initializerInput, clientContext) -> clientContext.addPublishInboundInterceptor(helloWorldInterceptor));
+                (initializerInput, clientContext) -> clientContext.addPublishOutboundInterceptor(helloWorldInterceptor));
     }
 }

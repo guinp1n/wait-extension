@@ -15,33 +15,68 @@
  */
 package com.hivemq.extensions.helloworld;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.hivemq.extension.sdk.api.annotations.NotNull;
-import com.hivemq.extension.sdk.api.interceptor.publish.PublishInboundInterceptor;
-import com.hivemq.extension.sdk.api.interceptor.publish.parameter.PublishInboundInput;
-import com.hivemq.extension.sdk.api.interceptor.publish.parameter.PublishInboundOutput;
-import com.hivemq.extension.sdk.api.packets.publish.ModifiablePublishPacket;
+import com.hivemq.extension.sdk.api.interceptor.publish.PublishOutboundInterceptor;
+import com.hivemq.extension.sdk.api.interceptor.publish.parameter.PublishOutboundInput;
+import com.hivemq.extension.sdk.api.interceptor.publish.parameter.PublishOutboundOutput;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import okhttp3.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
- * This is a very simple {@link PublishInboundInterceptor},
- * it changes the payload of every incoming PUBLISH with the topic 'hello/world' to 'Hello World!'.
+ * This is a {@link PublishOutboundInterceptor},
  *
- * @author Yannick Weber
- * @since 4.3.1
+ * @author Dasha Samkova
+ * @since 4.45.0
  */
-public class HelloWorldInterceptor implements PublishInboundInterceptor {
+public class HelloWorldInterceptor implements PublishOutboundInterceptor {
+    private static final @NotNull Logger log = LoggerFactory.getLogger(HelloWorldInterceptor.class);
+    final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public void onInboundPublish(
-            final @NotNull PublishInboundInput publishInboundInput,
-            final @NotNull PublishInboundOutput publishInboundOutput) {
+    public void onOutboundPublish(
+            final @NotNull PublishOutboundInput publishOutboundInput,
+            final @NotNull PublishOutboundOutput publishOutboundOutput) {
 
-        final ModifiablePublishPacket publishPacket = publishInboundOutput.getPublishPacket();
-        if ("hello/world".equals(publishPacket.getTopic())) {
-            final ByteBuffer payload = ByteBuffer.wrap("Hello World!".getBytes(StandardCharsets.UTF_8));
-            publishPacket.setPayload(payload);
+        //log.info("Client ID: {}",publishOutboundInput.getClientInformation().getClientId());
+        // 1. Create a reusable OkHttpClient instance
+        OkHttpClient client = new OkHttpClient();
+
+        // 2. Define the URL for the request
+        String url = "http://localhost:8888/api/v1/mqtt/clients/" + publishOutboundInput.getClientInformation().getClientId();
+
+        // 3. Build the request object
+        Request request = new Request.Builder()
+                .url(url)
+                .build(); // .get() is the default method
+
+        // 4. Execute the request and handle the response
+        try (Response response = client.newCall(request).execute()) {
+
+            if (!response.isSuccessful()) {
+                // Handle unsuccessful responses (e.g., 404, 500)
+                throw new IOException("Unexpected code " + response);
+            }
+
+            // Get the response body as a string (this will be your JSON)
+            // Note: response.body().string() can be called only once.
+            String jsonResponse = response.body().string();
+            JsonNode root = objectMapper.readTree(jsonResponse);
+            int messageQueueSize = root.path("client").path("messageQueueSize").asInt();
+            int maxQueueSize = root.path("client").path("restrictions").path("maxQueueSize").asInt();
+
+            log.info("HELLO Client ID: {}, queue: {}",publishOutboundInput.getClientInformation().getClientId(),messageQueueSize);
+
+        } catch (IOException e) {
+            // Handle network errors or other exceptions
+            log.error("Error making the request: " + e.getMessage());
         }
     }
 }

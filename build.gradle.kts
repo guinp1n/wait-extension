@@ -4,6 +4,11 @@ plugins {
     alias(libs.plugins.license)
 }
 
+dependencies {
+    implementation("com.squareup.okhttp3:okhttp:${property("okhttp.version")}")
+    implementation("com.fasterxml.jackson.core:jackson-databind:${property("jackson-databind.version")}")
+}
+
 group = "com.hivemq.extensions"
 description = "HiveMQ 4 Hello World Extension - a simple reference for all extension developers"
 
